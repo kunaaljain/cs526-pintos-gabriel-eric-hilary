@@ -88,7 +88,31 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
-  return -1;
+	/*printf("WAITING FOR PARENT\n"); */
+	struct thread *t;
+  int ret;
+  
+  ret = -1;
+  t = get_thread_by_tid (child_tid);
+  if (!t || t->status == THREAD_DYING || t->ret_status == RET_STATUS_INVALID)
+    goto done;
+  if (t->ret_status != RET_STATUS_DEFAULT && t->ret_status != RET_STATUS_INVALID)
+    {
+      ret = t->ret_status;
+      goto done;
+    }
+
+  sema_down (&t->wait);
+  ret = t->ret_status;
+  printf ("Thread %s: exit(%d)\n", t->name, t->ret_status);
+  while (t->status == THREAD_BLOCKED)
+    thread_unblock (t);
+  
+done:
+	/* printf("FINISHED WAITING FOR PARENT\n"); */
+  t->ret_status = RET_STATUS_INVALID;
+  return ret;
+	
 }
 
 /* Free the current process's resources. */
