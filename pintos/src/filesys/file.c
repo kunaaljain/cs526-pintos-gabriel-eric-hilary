@@ -18,6 +18,7 @@ struct file *
 file_open (struct inode *inode) 
 {
   struct file *file = calloc (1, sizeof *file);
+
   if (inode != NULL && file != NULL)
     {
       file->inode = inode;
@@ -49,7 +50,7 @@ file_close (struct file *file)
     {
       file_allow_write (file);
       inode_close (file->inode);
-      free (file); 
+      free (file);
     }
 }
 

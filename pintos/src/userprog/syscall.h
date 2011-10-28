@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <debug.h>
 void syscall_init (void);
+int syscall_exit (int status);
 
 /* Process identifier. */
 typedef int pid_t;
