@@ -29,6 +29,11 @@ typedef int tid_t;
 #define PRI_DEFAULT 31                  /* Default priority. */
 #define PRI_MAX 63                      /* Highest priority. */
 
+#ifdef USERPROG
+# define RET_STATUS_DEFAULT 0xcdcdcdcd
+# define RET_STATUS_INVALID 0xdcdcdcdc
+#endif
+
 /* A kernel thread or user process.
 
    Each thread structure is stored in its own 4 kB page.  The
@@ -100,6 +105,9 @@ struct thread
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
+	struct list files;                  /* all opened files */
+	int ret_status;                     /* return status */
+	struct semaphore wait;              /* semaphore for process_wait */
 #endif
 
     /* Owned by thread.c. */
@@ -162,5 +170,6 @@ int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
+struct thread *get_thread_by_tid (tid_t);
 
 #endif /* threads/thread.h */
