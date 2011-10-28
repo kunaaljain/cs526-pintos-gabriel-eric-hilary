@@ -121,7 +121,6 @@ static void start_process (void *file_name_) {
        argv[argc++] = arg;
 
   }
-  char **arg_stack[argc];
 
   success = load (argv[0], &if_.eip, &if_.esp); // arg[0] contains the program name.  Try to load it from disk here.
   
@@ -131,6 +130,7 @@ static void start_process (void *file_name_) {
      memcpy (if_.esp, file_name, len + 1);
 
      int i;
+     char **arg_stack[argc];
 
      /* Build the stack */
      for (i = argc-1; i >= 0; i--){
