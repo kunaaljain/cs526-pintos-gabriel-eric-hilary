@@ -29,11 +29,19 @@ typedef int tid_t;
 #define PRI_DEFAULT 31                  /* Default priority. */
 #define PRI_MAX 63                      /* Highest priority. */
 
+<<<<<<< .mine
+#ifdef USERPROG
+#define RET_CODE_DEFAULT 0xcdcdcdcd
+#define RET_CODE_INVALID 0xdcdcdcdc
+#endif
+
+=======
 #ifdef USERPROG
 # define RET_STATUS_DEFAULT 0xcdcdcdcd
 # define RET_STATUS_INVALID 0xdcdcdcdc
 #endif
 
+>>>>>>> .r10
 /* A kernel thread or user process.
 
    Each thread structure is stored in its own 4 kB page.  The
@@ -119,11 +127,15 @@ struct thread
     int initial_priority;	       /* The threads initial priority */
     struct list locks;          /* List of locks that this thread holds */
     int64_t num_ticks_to_sleep;        /* Amount of time to sleep */    
-    int64_t wakeup_time;   
     bool donated_to;		       /* Has this thread been donated priority? */ 
     int nice;                /* Nice value for MLFQS */
     int recent_cpu;          /* Recent CPU value for MLFQS */
     struct list_elem timer_list_elem;
+
+#ifdef USERPROG
+    struct semaphore sema_wait;
+    int return_code;
+#endif
   };
 
 /* My code */
@@ -133,6 +145,7 @@ void thread_yield_mine (struct thread *thread);
 void thread_calc_priorities(void);
 void thread_calc_load_avg(void);
 void thread_calc_recent_cpu_values(void);
+struct thread *find_thread(tid_t child_tid);
 /***********/
 
 /* If false (default), use round-robin scheduler.

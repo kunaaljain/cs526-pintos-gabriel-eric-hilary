@@ -37,7 +37,7 @@ filesys_done (void)
 {
   free_map_close ();
 }
-
+
 /* Creates a file named NAME with the given INITIAL_SIZE.
    Returns true if successful, false otherwise.
    Fails if a file named NAME already exists,
@@ -63,16 +63,14 @@ filesys_create (const char *name, off_t initial_size)
    otherwise.
    Fails if no file named NAME exists,
    or if an internal memory allocation fails. */
-struct file *
-filesys_open (const char *name)
-{
+struct file *filesys_open (const char *name) {
   struct dir *dir = dir_open_root ();
   struct inode *inode = NULL;
-
-  if (dir != NULL)
+  if (dir != NULL) {
     dir_lookup (dir, name, &inode);
+  }
   dir_close (dir);
-
+  
   return file_open (inode);
 }
 

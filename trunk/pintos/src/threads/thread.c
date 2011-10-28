@@ -82,6 +82,24 @@ static void thread_calc_priority_of(struct thread *thread);
 static void thread_calc_recent_cpu_of(struct thread *thread);
 int load_average;
 
+struct thread *find_thread(tid_t child_tid) {
+
+  struct list_elem *f;
+  struct thread *ret;
+  
+  ret = NULL;
+  for (f = list_begin (&all_list); f != list_end (&all_list); f = list_next (f))
+    {
+      ret = list_entry (f, struct thread, allelem);
+      ASSERT (is_thread (ret));
+      if (ret->tid == child_tid)
+        return ret;
+    }
+    
+  return NULL;
+
+}
+
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
    general and it is possible in this case only because loader.S
@@ -234,6 +252,11 @@ thread_create (const char *name, int priority,
   if (priority > thread_current()->priority) {
      thread_yield_mine(thread_current()); 
   }
+
+  #ifdef USERPROG
+  sema_init (&t->sema_wait, 0);
+  t->return_code = RET_CODE_DEFAULT;
+  #endif
 
   return tid;
 }
