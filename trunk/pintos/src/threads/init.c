@@ -386,6 +386,28 @@ usage (void)
   shutdown_power_off ();
 }
 
+void
+power_off (void) 
+{
+  const char s[] = "Shutdown";
+  const char *p;
+
+#ifdef FILESYS
+  filesys_done ();
+#endif
+
+  //print_stats ();
+
+  printf ("Powering off...\n");
+  serial_flush ();
+
+  for (p = s; *p != '\0'; p++)
+    outb (0x8900, *p);
+  asm volatile ("cli; hlt" : : : "memory");
+  printf ("still running...\n");
+  for (;;);
+}
+
 #ifdef FILESYS
 /* Figure out what block devices to cast in the various Pintos roles. */
 static void
