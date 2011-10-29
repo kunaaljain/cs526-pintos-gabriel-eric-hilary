@@ -417,7 +417,7 @@ void thread_set_priority (int new_priority) {
     thread_set_priority_mine(thread_current(), new_priority, true);
 }
 
-
+//Gabe:
 //Sets the priority of a specific thread.  If the thread has a donated priority we want to
 //maintain the threads initial priority so that it can fall back on its original priority value
 //once the donation has ended.
@@ -669,7 +669,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->status = THREAD_BLOCKED;
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
-  
+  //Gabe:
   // Initialize the added fields of the thread struct
   if (!thread_mlfqs) {
      t->priority = priority;
@@ -807,7 +807,7 @@ void sort_list (struct list *list) {
   list_sort (list, thread_priority_comparator_gt, NULL);
 }
 
-/* 
+/* Gabe:
    Compares threads in the ready list by priority */
 static bool thread_priority_comparator_gt (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED) {
   struct thread *ia, *ib;
