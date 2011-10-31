@@ -20,9 +20,9 @@ static void syscall_handler (struct intr_frame *);
 struct file * find_file_by_fd (int fd);
 struct fd_elem * find_fd_elem_by_fd (int fd);
 struct fd_elem * find_fd_elem_by_fd_in_process (int fd);
-struct lock file_lock;
-static int alloc_fid (void);
+struct lock filelock;
 
+static int fid = 2;
 
 static int syscall_write (int fd, const void *buffer, unsigned length);
 static int syscall_halt(void);
@@ -37,10 +37,10 @@ static int syscall_write (int fd, const void *buffer, unsigned length);
 static int syscall_seek (int fd, unsigned position);
 static int syscall_tell (int fd);
 static int syscall_close (int fd);
+static bool bad_args(int *syscall, int numargs);
 
-struct list file_list;
-struct fd_elem
-{
+struct list filelist;
+struct fd_elem {
   int fd;
   struct file *file;
   struct list_elem elem;
@@ -49,55 +49,69 @@ struct fd_elem
 
 void syscall_init (void) {
 
-	printf("INITIALIZING THE SYSCALL HANDLER \n");
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
+  list_init(&filelist);
+  lock_init (&filelock);
 
 }
 
 static void syscall_handler (struct intr_frame *f) {
 
   int *syscall;
-  int retval;
+  int retval = -1;
   
   syscall = f->esp;
   
   if (*syscall == SYS_WRITE) {
-    retval = syscall_write((int)*(syscall + 1), (void*)*(syscall + 2), (unsigned)*(syscall + 3));
+        if (!bad_args(syscall, 3)) {
+        	retval = syscall_write((int)*(syscall + 1), (void*)*(syscall + 2), (unsigned)*(syscall + 3));
+        }
   } else if (*syscall == SYS_EXIT) {
-    retval = syscall_exit((int)*(syscall + 1));
-  }
-	else if (*syscall == SYS_HALT){
+        if (!bad_args(syscall, 1)) {
+    		retval = syscall_exit((int)*(syscall + 1));
+	}
+  } else if (*syscall == SYS_HALT){
 	retval = syscall_halt();
-  }
-	else if (*syscall == SYS_EXEC){
-	retval = syscall_exec((char*)*(syscall + 1));
-  }
-	else if (*syscall == SYS_WAIT){
-	retval = syscall_wait((pid_t)*(syscall + 1));
-  }
-	else if (*syscall == SYS_CREATE){
-	retval = syscall_create((char*)*(syscall + 1), (unsigned)*(syscall + 2));
-  }
-	else if (*syscall == SYS_REMOVE){
-	retval = syscall_remove((char*)*(syscall + 1));
-  }	
-	else if (*syscall == SYS_OPEN){
-	retval = syscall_open((char*)*(syscall + 1));
-  }
-	else if (*syscall == SYS_FILESIZE){
-	retval = syscall_filesize((int)*(syscall + 1));
-  }
-	else if (*syscall == SYS_READ){
-	retval = syscall_read((int)*(syscall + 1), (void*)*(syscall + 2), (unsigned)*(syscall + 3));
-  }
-	else if (*syscall == SYS_SEEK){
-	retval = syscall_seek((int)*(syscall + 1), (unsigned)*(syscall + 2));
-  }
-	else if (*syscall == SYS_TELL){
-	retval = syscall_tell((int)*(syscall + 1));
-  }
-	else if (*syscall == SYS_CLOSE){
-	retval = syscall_close((int)*(syscall + 1));
+  } else if (*syscall == SYS_EXEC){
+        if (!bad_args(syscall, 1)) {
+		retval = syscall_exec((char*)*(syscall + 1));
+	}
+  } else if (*syscall == SYS_WAIT){
+        if (!bad_args(syscall, 1)) {
+		retval = syscall_wait((pid_t)*(syscall + 1));
+	}
+  } else if (*syscall == SYS_CREATE){
+        if (!bad_args(syscall, 2)) {
+		retval = syscall_create((char*)*(syscall + 1), (unsigned)*(syscall + 2));
+	}
+  } else if (*syscall == SYS_REMOVE){
+        if (!bad_args(syscall, 1)) {
+		retval = syscall_remove((char*)*(syscall + 1));
+	}
+  } else if (*syscall == SYS_OPEN){
+        if (!bad_args(syscall, 1)) {
+		retval = syscall_open((char*)*(syscall + 1));
+	}
+  } else if (*syscall == SYS_FILESIZE){
+        if (!bad_args(syscall, 1)) {
+		retval = syscall_filesize((int)*(syscall + 1));
+	}
+  } else if (*syscall == SYS_READ){
+        if (!bad_args(syscall, 3)) {
+		retval = syscall_read((int)*(syscall + 1), (void*)*(syscall + 2), (unsigned)*(syscall + 3));
+	}
+  } else if (*syscall == SYS_SEEK){
+        if (!bad_args(syscall, 2)) {
+		retval = syscall_seek((int)*(syscall + 1), (unsigned)*(syscall + 2));
+	}
+  } else if (*syscall == SYS_TELL){
+        if (!bad_args(syscall, 1)) {
+		retval = syscall_tell((int)*(syscall + 1));
+	}
+  } else if (*syscall == SYS_CLOSE){
+        if (!bad_args(syscall, 1)) {
+		retval = syscall_close((int)*(syscall + 1));
+	}
   }
 
 
@@ -108,27 +122,62 @@ static void syscall_handler (struct intr_frame *f) {
  
 }
 
+static bool bad_args(int *syscall, int numargs) {
+
+   if (syscall + numargs >= PHYS_BASE) {
+      thread_current()->return_code = -1;
+      thread_exit();
+      return true;
+   }
+   
+   return false;
+
+}
+
 static int syscall_write (int fd, const void *buffer, unsigned length) {
 
-  if (fd == 1) {
-    putbuf (buffer, length);
+  struct file *f;
+  int ret = 0;
+
+  if (length <= 0) {
+    return 0;
   }
-  return length;
+
+  lock_acquire(&filelock);
+  if (fd == STDOUT_FILENO) {
+    putbuf (buffer, length);
+    ret = length;
+  } else if (fd = STDIN_FILENO) {
+    lock_release(&filelock);
+    syscall_exit(0);
+  } else if (!is_user_vaddr (buffer) || !is_user_vaddr (buffer + length)) {
+     lock_release(&filelock);
+     syscall_exit(-1);
+  } else {
+     f = find_file_by_fd(fd);
+     if (!f) {
+        lock_release(&filelock);
+        syscall_exit(0);
+        return ret;
+     }
+     ret = file_write (f, buffer, length);
+  }
+
+  lock_release(&filelock);
+  return ret;
 
 }
 
 int syscall_exit (int status) {
 
-	/* Close all the files */
- 			struct thread *t;
-  		struct list_elem *l;
+   struct thread *t;
+   struct list_elem *l;
   
- 			t = thread_current ();
- 		  while (!list_empty (&t->files))
-      {
-     	 	l = list_begin (&t->files);
-     	 	syscall_close (list_entry (l, struct fd_elem, thread_elem)->fd);
-   	  }
+   t = thread_current ();
+   while (!list_empty (&t->files)){
+     	l = list_begin (&t->files);
+     	syscall_close (list_entry (l, struct fd_elem, thread_elem)->fd);
+   }
 
   thread_current()->return_code = status;
   thread_exit();
@@ -137,197 +186,220 @@ int syscall_exit (int status) {
 }
 
 static int syscall_halt(void){
-	
-	power_off();
+   printf("Powering off...\n");
+   power_off();
 }
 
 static int syscall_exec(const char *cmd_line){
 
-	pid_t ret;
-  
-	if (!cmd_line || !is_user_vaddr (cmd_line)) /* bad ptr */
-		return -1;
-	ret = process_execute (cmd_line);
-	return ret;
+   pid_t ret;
+
+   if (!cmd_line || !is_user_vaddr (cmd_line)) {
+      thread_current()->return_code = -1;
+      thread_exit();
+   }
+   lock_acquire(&filelock);
+   ret = process_execute (cmd_line);
+   lock_release(&filelock);
+   return ret;
+
 }
 
 static int syscall_wait (pid_t pid){
 	
-	return process_wait (pid);
+   return process_wait (pid);
+
 }
 
 
 static int syscall_create (const char *file, unsigned initial_size){
 
-	if (!file)
-  {
-    return syscall_exit (-1);    
+  if (!file) {
+        thread_current()->return_code = -1;
+    	return syscall_exit (-1);    
+  } else {
+	return filesys_create (file, initial_size);
   }
 
-  else
- 		return filesys_create (file, initial_size);
 }
 
 
 static int syscall_remove (const char *file){
 	
-	if (!file)
-    return -1;
-  else if (!is_user_vaddr (file))
-  {
-	printf("invalid user virtual address");
-   return syscall_exit (-1);	
+  if (!file) {
+     thread_current()->return_code = -1;
+     return -1;
+  } else if (!is_user_vaddr (file)) {
+     thread_current()->return_code = -1;
+     return syscall_exit (-1);	
+  } else {
+     return filesys_remove (file);
   }
-	else
-	  return filesys_remove (file);
+
 }
 
 
 static int syscall_open (const char *file){
 
-	struct file *f;
+  struct file *f;
   struct fd_elem *fde;
-  int ret;
+  int ret = -1;
   
-  ret = -1; /* Initialize to -1 ("can not open") */
-  if (!file) /* file == NULL */
+  ret = -1;
+  if (!file) {
+    syscall_exit (-1);
     return -1;
-  if (!is_user_vaddr (file))
-    return syscall_exit (-1);
-  f = filesys_open (file);
-  if (!f) /* Bad file name */
-    goto done;
-    
-  fde = (struct fd_elem *)malloc (sizeof (struct fd_elem));
-  if (!fde) /* Not enough memory */
-    {
-	  printf("Not enough memory to allocate memory syscall open()");
-      file_close (f);
-      goto done;
-    }
-    
+  }
 
-  /* allocate fde an ID, put fde in file_list, put fde in the current thread's file_list */
+  if (!is_user_vaddr (file)) {
+    syscall_exit (0);
+    return 0;
+  }
+
+  f = filesys_open (file);
+  if (!f) {
+    syscall_exit (0);
+    return 0;
+  }
+
+  fde = (struct fd_elem *)malloc (sizeof (struct fd_elem));
+  if (!fde) {
+    	syscall_exit (-1);
+	file_close (f);
+	return -1;
+  }
+
   fde->file = f; 
-  fde->fd = alloc_fid ();
-  list_push_back (&file_list, &fde->elem);
+  fde->fd = fid++;
+  list_push_back (&filelist, &fde->elem);
   list_push_back (&thread_current ()->files, &fde->thread_elem);
   ret = fde->fd;
-done:
+
   return ret;
 
 }
 
 static int syscall_filesize (int fd){
 
-	struct file *f;
+  struct file *f;
   
   f = find_file_by_fd (fd);
-  if (!f)
-    return -1; /* mabye return exit() ?? */
+  if (!f) {
+    thread_current()->return_code = -1;
+    return -1;
+  }
   return file_length (f);
+
 }
 
 
 static int syscall_read (int fd, void *buffer, unsigned length){
 
-	struct file * f;
+  struct file * f;
   unsigned i;
   int ret;
+
+  if (length <= 0) {
+    return 0;
+  }
   
-  ret = -1; /* Initialize to zero */
-  lock_acquire (&file_lock);
-  if (fd == STDIN_FILENO) /* stdin */
-    {
-      for (i = 0; i != length; ++i)
-        *(uint8_t *)(buffer + i) = input_getc ();
-      ret = length;
-      goto done;
-    }
-  else if (fd == STDOUT_FILENO) /* stdout */
-      goto done;
-  else if (!is_user_vaddr (buffer) || !is_user_vaddr (buffer + length)) /* bad ptr */
-    {
-      lock_release (&file_lock);
+  ret = -1;
+  lock_acquire (&filelock);
+  if (fd == STDIN_FILENO) {
+      for (i = 0; i != length; ++i) {
+        uint8_t ch = input_getc();
+        if (ch == '\n') {
+           break;
+        } else {
+           *(uint8_t *)(buffer + i) = ch;
+        }
+      }
+      lock_release (&filelock);
+      return length;
+  } else if (fd == STDOUT_FILENO) {
+      lock_release (&filelock);
+      syscall_exit (0);
+  } else if (!is_user_vaddr (buffer) || !is_user_vaddr (buffer + length)) {
+      lock_release (&filelock);
       syscall_exit(-1);
-    }
-  else
-    {
+  } else {
       f = find_file_by_fd (fd);
-      if (!f)
-        goto done;
+      if (!f) {
+         lock_release (&filelock);
+	 syscall_exit (0);
+         return ret;
+      }
       ret = file_read (f, buffer, length);
-    }
+  }
     
-done:    
-  lock_release (&file_lock);
+  lock_release (&filelock);
   return ret;
 }	
 
 
 static int syscall_seek (int fd, unsigned position){
 
-	struct file *f;
+  struct file *f;
   
   f = find_file_by_fd (fd);
-  if (!f)
+  if (!f) {
+    thread_current()->return_code = -1;
     return syscall_exit(-1);
+  }
   file_seek (f, (off_t)position);
-	return 0; /* file_seek() has NULL return type */
+
+  return 0;
+
 }
 
 
 static int syscall_tell (int fd){
 
-	struct file *f;
+  struct file *f;
   
   f = find_file_by_fd (fd);
-  if (!f)
+  if (!f) {
+    thread_current()->return_code = -1;
     return -1;
+  }
   return file_tell (f);
+
 }
 
 		
 static int syscall_close (int fd){
 
-	struct fd_elem *f;
+  struct fd_elem *f;
   
   f = find_fd_elem_by_fd_in_process (fd);
   
-  if (!f) /* Bad fd */
-    syscall_exit (-1);
- 
+  if (!f) {
+    return 0;
+  }
+
   file_close (f->file);
   list_remove (&f->elem);
   list_remove (&f->thread_elem);
   free (f);
-	return syscall_exit(1);
-}	
+  return 0;
 
-	
-static int alloc_fid (void)
-{
-   int fid = 2;
-  return fid++;
 }
 
-struct file * find_file_by_fd (int fd)
-{
+struct file * find_file_by_fd (int fd) {
   struct fd_elem *ret;
   
   ret = find_fd_elem_by_fd (fd);
-  if (!ret)
+  if (!ret) {
     return NULL;
+  }
   return ret->file;
 }
 
-struct fd_elem * find_fd_elem_by_fd (int fd)
-{
+struct fd_elem * find_fd_elem_by_fd (int fd) {
   struct fd_elem *ret;
   struct list_elem *l;
   
-  for (l = list_begin (&file_list); l != list_end (&file_list); l = list_next (l))
-    {
+  for (l = list_begin (&filelist); l != list_end (&filelist); l = list_next (l)) {
       ret = list_entry (l, struct fd_elem, elem);
       if (ret->fd == fd)
         return ret;
@@ -336,16 +408,14 @@ struct fd_elem * find_fd_elem_by_fd (int fd)
   return NULL;
 }
 
-struct fd_elem * find_fd_elem_by_fd_in_process (int fd)
-{
+struct fd_elem * find_fd_elem_by_fd_in_process (int fd) {
   struct fd_elem *ret;
   struct list_elem *l;
   struct thread *t;
   
   t = thread_current ();
   
-  for (l = list_begin (&t->files); l != list_end (&t->files); l = list_next (l))
-    {
+  for (l = list_begin (&t->files); l != list_end (&t->files); l = list_next (l)) {
       ret = list_entry (l, struct fd_elem, thread_elem);
       if (ret->fd == fd)
         return ret;

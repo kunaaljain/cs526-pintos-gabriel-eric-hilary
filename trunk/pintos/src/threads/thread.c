@@ -255,6 +255,8 @@ thread_create (const char *name, int priority,
 
   #ifdef USERPROG
   sema_init (&t->sema_wait, 0);
+  list_init (&t->files);
+  t->waiting = false;
   t->return_code = RET_CODE_DEFAULT;
   #endif
 
@@ -311,9 +313,7 @@ thread_name (void)
 /* Returns the running thread.
    This is running_thread() plus a couple of sanity checks.
    See the big comment at the top of thread.h for details. */
-struct thread *
-thread_current (void) 
-{
+struct thread *thread_current (void) {
   struct thread *t = running_thread ();
   
   /* Make sure T is really a thread.
@@ -342,6 +342,7 @@ thread_exit (void)
   ASSERT (!intr_context ());
 
 #ifdef USERPROG
+  ASSERT (list_size (&thread_current()->files) == 0);
   process_exit ();
 #endif
 

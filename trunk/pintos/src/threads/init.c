@@ -386,9 +386,7 @@ usage (void)
   shutdown_power_off ();
 }
 
-void
-power_off (void) 
-{
+void power_off (void) {
   const char s[] = "Shutdown";
   const char *p;
 
