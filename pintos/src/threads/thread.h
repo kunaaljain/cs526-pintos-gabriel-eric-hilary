@@ -103,13 +103,13 @@ struct thread
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 
-#ifdef USERPROG
-    /* Owned by userprog/process.c. */
-    uint32_t *pagedir;                  /* Page directory. */
-	struct list files;                  /* all opened files */
-	int ret_status;                     /* return status */
-	struct semaphore wait;              /* semaphore for process_wait */
-#endif
+    #ifdef USERPROG
+        uint32_t *pagedir;
+	struct list files;
+        struct semaphore sema_wait;
+        int return_code;
+        bool waiting;
+    #endif
 
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
@@ -124,11 +124,6 @@ struct thread
     int nice;                /* Nice value for MLFQS */
     int recent_cpu;          /* Recent CPU value for MLFQS */
     struct list_elem timer_list_elem;
-
-#ifdef USERPROG
-    struct semaphore sema_wait;
-    int return_code;
-#endif
   };
 
 /* My code */

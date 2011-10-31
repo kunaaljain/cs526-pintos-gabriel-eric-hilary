@@ -90,11 +90,8 @@ static void start_process (void *file_name_) {
   
   char *arg;       // Token
   char *saveptr;   // Pointer to next token
-  char **argv;     // Vector of arguments
+  char *argv[65];     // Vector of arguments
   int argc = 0;    // Argument count
-
-  /* Let's allocate a page for the argument vector */
-  argv = palloc_get_page (0);
 
   /* Get a copy of the file name */
   char *fn = malloc(strlen(file_name) + 1);
@@ -111,9 +108,8 @@ static void start_process (void *file_name_) {
           saveptr++;
        }
 
-       if (argc >= 32) { // Let's allow a maximum of 32 arguments.
+       if (argc >= 65) { // Let's allow a maximum of 65 arguments.
 	  palloc_free_page ((void*)file_name);
-          palloc_free_page ((void*)argv);
           thread_exit();
        }
        
@@ -164,6 +160,7 @@ static void start_process (void *file_name_) {
 
      /* Signal the semaphore and block */
      sema_up (&thread->sema_wait);
+     thread->waiting = false;
      intr_disable ();
      thread_block ();
      intr_enable ();
@@ -171,13 +168,13 @@ static void start_process (void *file_name_) {
      /* Loading failed.  We need to signal the semaphore, block and exit */
      thread->return_code = -1;
      sema_up (&thread->sema_wait);
+     thread->waiting = false;
      intr_disable ();
      thread_block ();
      intr_enable ();
      thread_exit ();
   }
 
-  palloc_free_page(argv);
   palloc_free_page (file_name);
 
   /* Start the user process by simulating a return from an
@@ -207,6 +204,10 @@ process_wait (tid_t child_tid)
 
   /* Find the thread by this child thread id */  
   thread = find_thread (child_tid);
+  if (thread->waiting == true) {
+    thread->return_code = RET_CODE_INVALID;
+    return -1;
+  }
   if (!thread || 
       thread->status == THREAD_DYING ||
       thread->return_code == RET_CODE_INVALID) {
@@ -233,6 +234,8 @@ process_wait (tid_t child_tid)
   while (thread->status == THREAD_BLOCKED) {
      thread_unblock(thread);
   }
+
+  thread->waiting = true;
   
   return ret;
 }
@@ -404,8 +407,9 @@ load (const char *file_name, void (**eip) (void), void **esp)
         goto done;
       file_seek (file, file_ofs);
 
-      if (file_read (file, &phdr, sizeof phdr) != sizeof phdr)
+      if (file_read (file, &phdr, sizeof phdr) != sizeof phdr) {
         goto done;
+      }
       file_ofs += sizeof phdr;
       switch (phdr.p_type) 
         {
@@ -519,7 +523,7 @@ validate_segment (const struct Elf32_Phdr *phdr, struct file *file)
      could quite likely panic the kernel by way of null pointer
      assertions in memcpy(), etc. */
   if (phdr->p_vaddr < PGSIZE) {
-    //return false;
+    //printf("p_vaddr = %d\n.  PGSIZE = %d\n", phdr->p_vaddr, PGSIZE);
   }
 
   /* It's okay. */
