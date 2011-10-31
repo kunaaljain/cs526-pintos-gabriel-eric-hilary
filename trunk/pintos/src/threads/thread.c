@@ -342,7 +342,6 @@ thread_exit (void)
   ASSERT (!intr_context ());
 
 #ifdef USERPROG
-  ASSERT (list_size (&thread_current()->files) == 0);
   process_exit ();
 #endif
 

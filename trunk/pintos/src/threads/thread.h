@@ -31,8 +31,8 @@ typedef int tid_t;
 
 
 #ifdef USERPROG
-#define RET_CODE_DEFAULT 0xcdcdcdcd
-#define RET_CODE_INVALID 0xdcdcdcdc
+#define RET_CODE_DEFAULT 0
+#define RET_CODE_INVALID -1
 #endif
 
 /* A kernel thread or user process.
@@ -125,6 +125,13 @@ struct thread
     int recent_cpu;          /* Recent CPU value for MLFQS */
     struct list_elem timer_list_elem;
   };
+
+struct fd_elem {
+   int fd;
+   struct file *file;
+   struct list_elem elem; 
+   struct list_elem thread_elem;
+ };
 
 /* My code */
 void sort_list (struct list *list);
