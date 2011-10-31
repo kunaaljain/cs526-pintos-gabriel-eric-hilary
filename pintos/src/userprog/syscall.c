@@ -33,19 +33,12 @@ static int syscall_remove (const char *file);
 static int syscall_open (const char *file);
 static int syscall_filesize (int fd);
 static int syscall_read (int fd, void *buffer, unsigned length);
-static int syscall_write (int fd, const void *buffer, unsigned length);
 static int syscall_seek (int fd, unsigned position);
 static int syscall_tell (int fd);
 static int syscall_close (int fd);
 static bool bad_args(int *syscall, int numargs);
 
 struct list filelist;
-struct fd_elem {
-  int fd;
-  struct file *file;
-  struct list_elem elem;
-  struct list_elem thread_elem;
-};
 
 void syscall_init (void) {
 
@@ -61,6 +54,11 @@ static void syscall_handler (struct intr_frame *f) {
   int retval = -1;
   
   syscall = f->esp;
+
+  if (*syscall < SYS_HALT || *syscall > SYS_CLOSE) {
+     printf("BAD\n");
+     f->eax = -1;
+  }
   
   if (*syscall == SYS_WRITE) {
         if (!bad_args(syscall, 3)) {
@@ -140,16 +138,17 @@ static int syscall_write (int fd, const void *buffer, unsigned length) {
   int ret = 0;
 
   if (length <= 0) {
-    return 0;
+    printf("(%s) end\n", thread_current()->name);
+    syscall_exit(0);
   }
 
   lock_acquire(&filelock);
   if (fd == STDOUT_FILENO) {
     putbuf (buffer, length);
     ret = length;
-  } else if (fd = STDIN_FILENO) {
+  } else if (fd == STDIN_FILENO) {
     lock_release(&filelock);
-    syscall_exit(0);
+    syscall_exit(-1);
   } else if (!is_user_vaddr (buffer) || !is_user_vaddr (buffer + length)) {
      lock_release(&filelock);
      syscall_exit(-1);
@@ -157,8 +156,7 @@ static int syscall_write (int fd, const void *buffer, unsigned length) {
      f = find_file_by_fd(fd);
      if (!f) {
         lock_release(&filelock);
-        syscall_exit(0);
-        return ret;
+        syscall_exit(-1);
      }
      ret = file_write (f, buffer, length);
   }
@@ -181,12 +179,11 @@ int syscall_exit (int status) {
 
   thread_current()->return_code = status;
   thread_exit();
-  return -1;
+  return status;
 
 }
 
 static int syscall_halt(void){
-   printf("Powering off...\n");
    power_off();
 }
 
@@ -244,29 +241,34 @@ static int syscall_open (const char *file){
   struct file *f;
   struct fd_elem *fde;
   int ret = -1;
+
+  if (strlen(file)==0) {
+    printf("(%s) end\n", thread_current()->name);
+    syscall_exit(0);
+  }
   
   ret = -1;
-  if (!file) {
+  if (!file || !is_user_vaddr (file)) {
     syscall_exit (-1);
-    return -1;
-  }
-
-  if (!is_user_vaddr (file)) {
-    syscall_exit (0);
-    return 0;
   }
 
   f = filesys_open (file);
   if (!f) {
+    printf("(%s) end\n", thread_current()->name);
     syscall_exit (0);
-    return 0;
   }
 
   fde = (struct fd_elem *)malloc (sizeof (struct fd_elem));
   if (!fde) {
-    	syscall_exit (-1);
-	file_close (f);
-	return -1;
+    file_close (f);
+    syscall_exit (0);
+  }
+  
+  int fd = fde->fd;
+  if (fd == STDIN_FILENO) {
+    syscall_exit(0);
+  } else if (fd == STDOUT_FILENO) {
+    syscall_exit(1);
   }
 
   fde->file = f; 
@@ -300,7 +302,8 @@ static int syscall_read (int fd, void *buffer, unsigned length){
   int ret;
 
   if (length <= 0) {
-    return 0;
+    printf("(%s) end\n", thread_current()->name);
+    syscall_exit(0);
   }
   
   ret = -1;
@@ -318,7 +321,7 @@ static int syscall_read (int fd, void *buffer, unsigned length){
       return length;
   } else if (fd == STDOUT_FILENO) {
       lock_release (&filelock);
-      syscall_exit (0);
+      syscall_exit (-1);
   } else if (!is_user_vaddr (buffer) || !is_user_vaddr (buffer + length)) {
       lock_release (&filelock);
       syscall_exit(-1);
@@ -326,7 +329,7 @@ static int syscall_read (int fd, void *buffer, unsigned length){
       f = find_file_by_fd (fd);
       if (!f) {
          lock_release (&filelock);
-	 syscall_exit (0);
+	 syscall_exit (-1);
          return ret;
       }
       ret = file_read (f, buffer, length);

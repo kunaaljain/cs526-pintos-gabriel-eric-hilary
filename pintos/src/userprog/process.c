@@ -160,7 +160,6 @@ static void start_process (void *file_name_) {
 
      /* Signal the semaphore and block */
      sema_up (&thread->sema_wait);
-     thread->waiting = false;
      intr_disable ();
      thread_block ();
      intr_enable ();
@@ -168,12 +167,13 @@ static void start_process (void *file_name_) {
      /* Loading failed.  We need to signal the semaphore, block and exit */
      thread->return_code = -1;
      sema_up (&thread->sema_wait);
-     thread->waiting = false;
      intr_disable ();
      thread_block ();
      intr_enable ();
      thread_exit ();
   }
+
+  thread->waiting = false;
 
   palloc_free_page (file_name);
 
@@ -204,25 +204,12 @@ process_wait (tid_t child_tid)
 
   /* Find the thread by this child thread id */  
   thread = find_thread (child_tid);
-  if (thread->waiting == true) {
-    thread->return_code = RET_CODE_INVALID;
+
+  if (thread->waiting) {
     return -1;
   }
-  if (!thread || 
-      thread->status == THREAD_DYING ||
-      thread->return_code == RET_CODE_INVALID) {
-    
-      thread->return_code = RET_CODE_INVALID;
-      return ret;
-
-  }
-  if (thread->return_code != RET_CODE_DEFAULT &&
-      thread->return_code != RET_CODE_INVALID) {
-
-      ret = thread->return_code;
-      thread->return_code = RET_CODE_INVALID;
-      return ret;
-
+  if (!thread) {
+    return -1;
   }
   
   /* Semaphore wait */
@@ -252,6 +239,13 @@ process_exit (void)
   intr_disable();
   thread_block();
   intr_enable();
+  struct list_elem *e = list_begin (&cur->files);
+  while (!list_empty (&cur->files)) {
+      struct fd_elem *file_d = list_entry (e, struct fd_elem, elem);
+      file_close (file_d->file);
+      e = list_remove (e);
+      free (file_d);
+    }
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */

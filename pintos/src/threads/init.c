@@ -38,6 +38,8 @@
 #include "filesys/fsutil.h"
 #endif
 
+static void print_stats (void);
+
 /* Page directory with kernel mappings only. */
 uint32_t *init_page_dir;
 
@@ -383,7 +385,7 @@ usage (void)
           "  -ul=COUNT          Limit user memory to COUNT pages.\n"
 #endif
           );
-  shutdown_power_off ();
+  power_off ();
 }
 
 void power_off (void) {
@@ -394,7 +396,7 @@ void power_off (void) {
   filesys_done ();
 #endif
 
-  //print_stats ();
+  print_stats ();
 
   printf ("Powering off...\n");
   serial_flush ();
@@ -404,6 +406,22 @@ void power_off (void) {
   asm volatile ("cli; hlt" : : : "memory");
   printf ("still running...\n");
   for (;;);
+}
+
+static void
+print_stats (void) {
+
+   timer_print_stats ();
+   thread_print_stats ();
+   #ifdef FILESYS
+      block_print_stats ();
+   #endif
+   console_print_stats ();
+   kbd_print_stats ();
+   #ifdef USERPROG
+      exception_print_stats ();
+   #endif
+
 }
 
 #ifdef FILESYS
