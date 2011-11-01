@@ -121,7 +121,7 @@ static void start_process (void *file_name_) {
   success = load (argv[0], &if_.eip, &if_.esp); // arg[0] contains the program name.  Try to load it from disk here.
   
   struct thread *thread = thread_current();
-  if (success) {	   
+  if (success) {
      int len = strlen(file_name);  
      memcpy (if_.esp, file_name, len + 1);
 
@@ -205,16 +205,14 @@ process_wait (tid_t child_tid)
   /* Find the thread by this child thread id */  
   thread = find_thread (child_tid);
 
-  if (thread->waiting) {
+  if (thread->waiting || !thread) {
     return -1;
   }
-  if (!thread) {
-    return -1;
-  }
-  
+
   /* Semaphore wait */
   sema_down (&thread->sema_wait);
   ret = thread->return_code;
+
   printf ("%s: exit(%d)\n", thread->name, ret);
 
   /* Try to unblock the thread */
@@ -223,7 +221,8 @@ process_wait (tid_t child_tid)
   }
 
   thread->waiting = true;
-  
+  thread->file = NULL;
+
   return ret;
 }
 
@@ -460,6 +459,8 @@ load (const char *file_name, void (**eip) (void), void **esp)
   *eip = (void (*) (void)) ehdr.e_entry;
 
   success = true;
+  t->file = file_reopen(file);
+  file_deny_write(t->file);
 
  done:
   /* We arrive here whether the load is successful or not. */
@@ -518,6 +519,7 @@ validate_segment (const struct Elf32_Phdr *phdr, struct file *file)
      assertions in memcpy(), etc. */
   if (phdr->p_vaddr < PGSIZE) {
     //printf("p_vaddr = %d\n.  PGSIZE = %d\n", phdr->p_vaddr, PGSIZE);
+    //return false;
   }
 
   /* It's okay. */

@@ -38,7 +38,7 @@ static int syscall_tell (int fd);
 static int syscall_close (int fd);
 static bool bad_args(int *syscall, int numargs);
 
-struct list filelist;
+static struct list filelist; // List of all open files
 
 void syscall_init (void) {
 
@@ -112,19 +112,14 @@ static void syscall_handler (struct intr_frame *f) {
 	}
   }
 
-
-  if (retval != -1) {
-    f->eax = retval;
-  }
-
+  f->eax = retval;
  
 }
 
 static bool bad_args(int *syscall, int numargs) {
 
    if (syscall + numargs >= PHYS_BASE) {
-      thread_current()->return_code = -1;
-      thread_exit();
+      syscall_exit(-1);
       return true;
    }
    
@@ -143,6 +138,7 @@ static int syscall_write (int fd, const void *buffer, unsigned length) {
   }
 
   lock_acquire(&filelock);
+
   if (fd == STDOUT_FILENO) {
     putbuf (buffer, length);
     ret = length;
@@ -195,6 +191,7 @@ static int syscall_exec(const char *cmd_line){
       thread_current()->return_code = -1;
       thread_exit();
    }
+
    lock_acquire(&filelock);
    ret = process_execute (cmd_line);
    lock_release(&filelock);
@@ -227,7 +224,6 @@ static int syscall_remove (const char *file){
      thread_current()->return_code = -1;
      return -1;
   } else if (!is_user_vaddr (file)) {
-     thread_current()->return_code = -1;
      return syscall_exit (-1);	
   } else {
      return filesys_remove (file);
