@@ -347,6 +347,8 @@ intr_handler (struct intr_frame *frame)
   bool external;
   intr_handler_func *handler;
 
+  //printf("Interrupt\n");
+
   /* External interrupts are special.
      We only handle one at a time (so interrupts must be off)
      and they need to be acknowledged on the PIC (see below).
@@ -360,19 +362,20 @@ intr_handler (struct intr_frame *frame)
       in_external_intr = true;
       yield_on_return = false;
     }
-
+  
   /* Invoke the interrupt's handler. */
   handler = intr_handlers[frame->vec_no];
-  if (handler != NULL)
+  if (handler != NULL) {
     handler (frame);
-  else if (frame->vec_no == 0x27 || frame->vec_no == 0x2f)
+  }else if (frame->vec_no == 0x27 || frame->vec_no == 0x2f)
     {
       /* There is no handler, but this interrupt can trigger
          spuriously due to a hardware fault or hardware race
          condition.  Ignore it. */
     }
-  else
+  else {
     unexpected_interrupt (frame);
+  }
 
   /* Complete the processing of an external interrupt. */
   if (external) 
