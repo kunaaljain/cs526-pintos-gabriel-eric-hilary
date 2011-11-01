@@ -205,7 +205,7 @@ process_wait (tid_t child_tid)
   /* Find the thread by this child thread id */  
   thread = find_thread (child_tid);
 
-  if (thread->waiting || !thread) {
+  if ((thread->waiting || !thread) && thread->return_code != -1) {
     return -1;
   }
 
@@ -399,7 +399,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
       if (file_ofs < 0 || file_ofs > file_length (file))
         goto done;
       file_seek (file, file_ofs);
-
+      
       if (file_read (file, &phdr, sizeof phdr) != sizeof phdr) {
         goto done;
       }

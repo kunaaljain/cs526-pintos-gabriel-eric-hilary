@@ -60,6 +60,7 @@ exception_init (void)
      We need to disable interrupts for page faults because the
      fault address is stored in CR2 and needs to be preserved. */
   intr_register_int (14, 0, INTR_OFF, page_fault, "#PF Page-Fault Exception");
+
 }
 
 /* Prints exception statistics. */
@@ -138,10 +139,6 @@ page_fault (struct intr_frame *f)
      (#PF)". */
   asm ("movl %%cr2, %0" : "=r" (fault_addr));
 
-  /* Turn interrupts back on (they were only off so that we could
-     be assured of reading CR2 before it changed). */
-  intr_enable ();
-
   /* Count page faults. */
   page_fault_cnt++;
 
@@ -150,19 +147,37 @@ page_fault (struct intr_frame *f)
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
 
-  //struct thread *t = thread_current ();
+  /* Turn interrupts back on (they were only off so that we could
+     be assured of reading CR2 before it changed). */
+  intr_enable ();
+
   if (fault_addr == 0 || not_present || (is_kernel_vaddr (fault_addr) && user)) {
-     syscall_exit (-1);
+       syscall_exit(-1);
   }
 
   /* To implement virtual memory, delete the rest of the function
      body, and replace it with code that brings in the page to
-     which fault_addr refers. */
+     which fault_addr refers. 
   printf ("Page fault at %p: %s error %s page in %s context.\n",
           fault_addr,
           not_present ? "not present" : "rights violation",
           write ? "writing" : "reading",
-          user ? "user" : "kernel");
-  kill (f);
+          user ? "user" : "kernel");*/
+
+  //if (is_kernel_vaddr(fault_addr)) {
+    //thread_exit();
+  //}
+
+#ifdef USERPROG
+  if (!user) {
+     f->eip = f->eax;
+     f->eax = 0xffffffff;
+     return;
+   }
+
+  printf("Fault addr: 0x%x\n", fault_addr);
+  thread_current()->return_code = -1;
+  thread_exit();
+#endif
 }
 
