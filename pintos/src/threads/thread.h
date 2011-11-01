@@ -29,12 +29,6 @@ typedef int tid_t;
 #define PRI_DEFAULT 31                  /* Default priority. */
 #define PRI_MAX 63                      /* Highest priority. */
 
-
-#ifdef USERPROG
-#define RET_CODE_DEFAULT 0
-#define RET_CODE_INVALID -1
-#endif
-
 /* A kernel thread or user process.
 
    Each thread structure is stored in its own 4 kB page.  The
@@ -106,6 +100,7 @@ struct thread
     #ifdef USERPROG
         uint32_t *pagedir;
 	struct list files;
+        struct file *file;
         struct semaphore sema_wait;
         int return_code;
         bool waiting;

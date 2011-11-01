@@ -257,7 +257,8 @@ thread_create (const char *name, int priority,
   sema_init (&t->sema_wait, 0);
   list_init (&t->files);
   t->waiting = false;
-  t->return_code = RET_CODE_DEFAULT;
+  t->return_code = 0;
+  t->file = NULL;
   #endif
 
   return tid;
