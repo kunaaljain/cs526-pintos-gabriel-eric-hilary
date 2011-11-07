@@ -151,7 +151,7 @@ page_fault (struct intr_frame *f)
      be assured of reading CR2 before it changed). */
   intr_enable ();
 
-  if (fault_addr == 0 || not_present || (is_kernel_vaddr (fault_addr) && user)) {
+  if ((void *)(fault_addr) == NULL || fault_addr == 0 || not_present || (is_kernel_vaddr (fault_addr) && user)) {
        syscall_exit(-1);
   }
 
@@ -175,7 +175,6 @@ page_fault (struct intr_frame *f)
      return;
    }
 
-  printf("Fault addr: 0x%x\n", fault_addr);
   thread_current()->return_code = -1;
   thread_exit();
 #endif
