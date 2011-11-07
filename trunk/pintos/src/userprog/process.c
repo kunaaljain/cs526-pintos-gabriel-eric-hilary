@@ -352,7 +352,7 @@ static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
 /* Loads an ELF executable from FILE_NAME into the current thread.
    Stores the executable's entry point into *EIP
    and its initial stack pointer into *ESP.
-   Returns true if ksuccessful, false otherwise. */
+   Returns true if successful, false otherwise. */
 bool
 load (const char *file_name, void (**eip) (void), void **esp) 
 {
@@ -362,6 +362,9 @@ load (const char *file_name, void (**eip) (void), void **esp)
   off_t file_ofs;
   bool success = false;
   int i;
+  int count = 0;
+
+restart:
 
   /* Allocate and activate page directory. */
   t->pagedir = pagedir_create ();
@@ -403,6 +406,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
       if (file_read (file, &phdr, sizeof phdr) != sizeof phdr) {
         goto done;
       }
+
       file_ofs += sizeof phdr;
       switch (phdr.p_type) 
         {
@@ -510,7 +514,6 @@ validate_segment (const struct Elf32_Phdr *phdr, struct file *file)
      address space. */
   if (phdr->p_vaddr + phdr->p_memsz < phdr->p_vaddr)
     return false;
-
 
   /* Disallow mapping page 0.
      Not only is it a bad idea to map page 0, but if we allowed

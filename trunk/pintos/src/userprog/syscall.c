@@ -9,6 +9,7 @@
 #include "threads/init.h"
 #include "userprog/process.h"
 #include <list.h>
+#include <string.h>
 #include "filesys/file.h"
 #include "filesys/filesys.h"
 #include "threads/palloc.h"
@@ -84,14 +85,10 @@ static void syscall_handler (struct intr_frame *f) {
   
   syscall = f->esp;
 
-  if(get_user((int)(*syscall))==-1){
-  	(*syscall) = -1;
+  if(get_user((int)(*syscall))==-1 || *syscall < SYS_HALT || *syscall > SYS_CLOSE){
+  	f->esp = -1;
   	syscall_exit(-1);
   	return -1;
-  }
-
-  if (*syscall < SYS_HALT || *syscall > SYS_CLOSE) {
-     syscall_exit(-1);
   }
   
   if (*syscall == SYS_WRITE) {
