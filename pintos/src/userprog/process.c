@@ -43,8 +43,7 @@ process_execute (const char *file_name)
   char *saveptr;
   char *fn = malloc(strlen(file_name) + 1);
   memcpy (fn, file_name, strlen(file_name) + 1);
-  file_name = strtok_r(fn, " ", &saveptr);
-
+	
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (fn, PRI_DEFAULT, start_process, fn_copy);
   
