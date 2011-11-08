@@ -19,6 +19,10 @@ We had a lot of issues with getting user programs to actually execute.  For some
 
 ---- DATA STRUCTURES ----
 
+>> A1: Copy here the declaration of each new or changed `struct' or
+>> `struct' member, global or static variable, `typedef', or
+>> enumeration.  Identify the purpose of each in 25 words or less.
+
 char *arg;               // Token
 char *saveptr;           // Pointer to next token
 char *argv[65];          // Vector of arguments
@@ -29,7 +33,7 @@ Three char arrays were created for argument passing.  argv is an array of char* 
 
 ---- ALGORITHMS ----
 
->> Briefly describe how you implemented argument parsing.  How do
+>> A2: Briefly describe how you implemented argument parsing.  How do
 >> you arrange for the elements of argv[] to be in the right order?
 >> How do you avoid overflowing the stack page?
 
@@ -103,11 +107,11 @@ The first part iterates through the array of arguments and allocates enough spac
 
 ---- RATIONALE ----
 
->> Why does Pintos implement strtok_r() but not strtok()?
+>> A3:: Why does Pintos implement strtok_r() but not strtok()?
 
 strtok_r() is safer than using strtok() because it does not maintain the internal state of the parse, and strtok() is not thread safe.
 
->> In Pintos, the kernel separates commands into a executable name
+>> A4: In Pintos, the kernel separates commands into a executable name
 >> and arguments.  In Unix-like systems, the shell does this
 >> separation.  Identify at least two advantages of the Unix approach.
 
@@ -134,24 +138,18 @@ static struct list filelist
 struct file * find_file_by_fd (int fd)
 	Returns the file element belonging to the fd_elem returned by find_fd_elem_by_fd.
 
-struct fd_elem * find_fd_elem_by_fd (int fd)
-	Iterates through filelist to find the fd_elem with a matching fd.
-	
-struct fd_elem * find_fd_elem_by_fd_in_process (int fd)
-	Iterates through thread_current's file list to find open file with matching fd.
-
 >> B2: Describe how file descriptors are associated with open files.
 >> Are file descriptors unique within the entire OS or just within a
 >> single process?
 
-We have created a struct fd_elem, which contains a unique integer ID, a file, and two list_elem, one describing the thread it is associated with. We also have a global filelist and a filelist containing open files in each process.
+We have created a struct fd_elem, which contains a file descriptor, a file, and two list_elem, one which points to the thread which owns the file and the other which is the list element within the file list.
 
 ---- ALGORITHMS ----
 
 >> B3: Describe your code for reading and writing user data from the
 >> kernel.
 
-From the syscall_handler, the syscall value is read which determines which system call is called. Our syscall_read implementation tests the amount of data to be read for a zero value. We then acquire our filelock and test for the sources where data will be read from and handle appropriately whether STDIN (read from keyboard with input_getc()) or STDOUT (exit (-1)). We then test that the buffer location in memory is in the userspace. Lastly we add the case of reading from a file with the passed in fd argument using our find_file_by_fd() function. We return the the value returned by the file_read() function if none of the error cases occur.
+From the syscall_handler, the pointer *esp is used to determine which system call is being requested. Our syscall_read implementation reads the correct amount of data into the buffer. We then acquire a lock on the file and test the source of the system call to determine where data will be read from and handle appropriately whether STDIN (read from keyboard with input_getc()) or STDOUT (exit (-1)). We then test that the buffer location in memory is in the userspace. Lastly we add the case of reading from a file with the passed in fd argument using our find_file_by_fd() function. We return the the value returned by the file_read() function if it was successful.
 
 >> B4: Suppose a system call causes a full page (4,096 bytes) of data
 >> to be copied from user space into the kernel.  What is the least
@@ -159,6 +157,10 @@ From the syscall_handler, the syscall value is read which determines which syste
 >> (e.g. calls to pagedir_get_page()) that might result?  What about
 >> for a system call that only copies 2 bytes of data?  Is there room
 >> for improvement in these numbers, and how much?
+
+The amount of times that we check the page table depends on how many pages the data spans.  If the data spans exactly one page then we will check the page table once.  That would be the minimum number of times.  If, for instance the data spans an entire page and part of another page.  In this case we will check the page table twice.  So, we will check the page table between 1 and 2 times.
+
+If we are only copying 2 bytes of data it is far less likely that we will have to check more than 1 page.  We could improve on this by not checking the page file at all and simply reading/writing until we get a page fault, at which point we could handle it appropriately.  This could allow us to have a best case of 0 page file checks.
 
 >> B5: Briefly describe your implementation of the "wait" system call
 >> and how it interacts with process termination.
@@ -181,6 +183,10 @@ We then use a semaphore to block the threadand set the return_code. Next we unbl
 >> paragraphs, describe the strategy or strategies you adopted for
 >> managing these issues.  Give an example.
 
+When we are executing any system call our first course of action is ensure that the system call is valid.  Then we check if the arguments (address pointer, buffer, etc.) are valid.  And then we proceed with the system call and address any errors that might occur during the system call.  So, our approach is to try to avoid errors beforehand so that the primary function of the system call is easily understandable.
+
+When an error has occurred our strategy is to end the process as gracefully as possible.  So, we first close all open files which the process owns and then we set the return code to a negative value which represents that an error has occurred and then we call thread_exit() to ensure that the thread is released from the system.
+
 ---- SYNCHRONIZATION ----
 
 >> B7: The "exec" system call returns -1 if loading the new executable
@@ -188,7 +194,7 @@ We then use a semaphore to block the threadand set the return_code. Next we unbl
 >> loading.  How does your code ensure this?  How is the load
 >> success/failure status passed back to the thread that calls "exec"?
 
-Our "exec" system call (syscall_exec) calls process_execute which creates a new thread to run the executable. Once the thread is completed, we wait on the thread to complete by checking the thread status, and calling process_wait if the return_code is invalid until the thread completes.
+Our "exec" system call (syscall_exec) calls process_execute which creates a new thread to run the executable.  We first check to make sure that the command line argument was valid in the first place.  If it is valid we attempt to execute the thread and if the execution fails we immediately return -1. If the process execution was successful we wait for the thread to complete by checking the thread status, and calling process_wait if the return_code is invalid until the thread completes.
 
 >> B8: Consider parent process P with child process C.  How do you
 >> ensure proper synchronization and avoid race conditions when P
@@ -197,19 +203,20 @@ Our "exec" system call (syscall_exec) calls process_execute which creates a new 
 >> terminates without waiting, before C exits?  After C exits?  Are
 >> there any special cases?
 
+
 ---- RATIONALE ----
 
->> Why did you choose to implement access to user memory from the
+>> B9: Why did you choose to implement access to user memory from the
 >> kernel in the way that you did?
 
 The choices we made were to prevent users from accessing memory which was not in userspace.  So, as requests for memory were received we first check if the request is for memory within the userspace boundary and if not we immediately call sys_exit(-1) which sets the return code and safely exits the process.  We do this to protect the system from possible kernel panics.
 
->> What advantages or disadvantages can you see to your design
+>> B10: What advantages or disadvantages can you see to your design
 >> for file descriptors?
 
 We chose to allow each process to maintain a list of file descriptors but we also keep a global list of open files.  The advantages are that a process has an easy way to iterated through all files which it currently owns.  However, the complexity comes when trying to map open files to their parent thread.  This is why we also use a global list of files.  If we are given a file descriptor we want to easily be able to determine which thread is using the file.  So, we simply can iterate through the global list and check the thread id associated with each file.  However, this makes keeping the global list and the list for each process difficult to remain in sync.
 
->> The default tid_t to pid_t mapping is the identity mapping.
+>> B11: The default tid_t to pid_t mapping is the identity mapping.
 >> If you changed it, what advantages are there to your approach?
 
 We did not change this.  We use the default implementation that is provided with Pintos.
