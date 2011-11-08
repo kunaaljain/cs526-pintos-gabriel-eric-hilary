@@ -6,43 +6,112 @@
 
 ---- GROUP ----
 
->> Fill in the names and email addresses of your group members.
-
-FirstName LastName <email@domain.example>
-FirstName LastName <email@domain.example>
-FirstName LastName <email@domain.example>
+Gabriel Loewen <gloewen@crimson.ua.edu>
+Eric Mccary <eamccary@crimson.ua.edu>
+Hilary Lattimore <hklattimore@crimson.ua.edu>
 
 ---- PRELIMINARIES ----
 
->> If you have any preliminary comments on your submission, notes for the
->> TAs, or extra credit, please give them here.
-
->> Please cite any offline or online sources you consulted while
->> preparing your submission, other than the Pintos documentation, course
->> text, lecture notes, and course staff.
+We had a lot of issues with getting user programs to actually execute.  For some reason virtual address 0x0 in userspace was being mapped without issuing a page fault as is documented in the Pintos documentation.  As a result we were unable to properly load user programs and had to simply comment out the line of code which verifies the validity of the address.  Additionally, we were unable to pass all tests.  Please see the Pintos project 2 output for a list of the tests which passed.
 
 			   ARGUMENT PASSING
 			   ================
 
 ---- DATA STRUCTURES ----
 
->> A1: Copy here the declaration of each new or changed `struct' or
->> `struct' member, global or static variable, `typedef', or
->> enumeration.  Identify the purpose of each in 25 words or less.
+char *arg;               // Token
+char *saveptr;           // Pointer to next token
+char *argv[65];          // Vector of arguments
+int argc = 0;            // Argument count
+char **arg_stack[argc];  // Pointer to the stack of arguments
+
+Three char arrays were created for argument passing.  argv is an array of char* which contains all of the arguments which are passed into the command line.  argv is one of the arguments and is used when parsing the command line input.  saveptr is a pointer to the next argument.  Additionally, argc is the number of arguments which is passed in.  We also create an array, arg_stack which contains pointers to each argument.  We use this to build the stack once the program loading is successful.
 
 ---- ALGORITHMS ----
 
->> A2: Briefly describe how you implemented argument parsing.  How do
+>> Briefly describe how you implemented argument parsing.  How do
 >> you arrange for the elements of argv[] to be in the right order?
 >> How do you avoid overflowing the stack page?
 
+Arguments are obtained from the command line input and are arranged as follows:
+<program name> <arg1> <arg2> … <arg n>
+
+So, the first argument follows the program name and this trend continues for each additional argument where the delimiter is a single space, but can be multiple spaces.  We use the provided string function "strtok_r" which takes a string, a delimiter and a pointer which is used to record the progress of parsing the string input.  The following code is used to parse the command line arguments:
+
+  /* Get a copy of the file name */
+  char *fn = malloc(strlen(file_name) + 1);
+  memcpy (fn, file_name, strlen (file_name) + 1);
+
+  /* Tokanize the arguments and add them to the argument vector */
+  for (arg = strtok_r(fn, " ", &saveptr);
+       arg != NULL;
+       arg = strtok_r(NULL,  " ", &saveptr)) {
+
+       /* We want to ignore extra whitespace.  
+          So, if the pointer to the next token points
+          to a space we want to increase the pointer by 1. */
+       while (*(saveptr)==' ') {
+          saveptr++;
+       }
+
+       if (argc >= 65) { // Let's allow a maximum of 65 arguments.
+	  palloc_free_page ((void*)file_name);
+          thread_exit();
+       }
+       
+       /* Insert the argument into the list */
+       argv[argc++] = arg;
+
+  }
+
+We arbitrarily set a max limit of arguments to 65, which should be more than enough for most uses.
+If we have more than 65 arguments than we simply free the page which was previously allocated for the file_name and exit the thread.  
+
+After parsing the arguments we push them to the stack.  We do this by iterating through the list of arguments and for each argument we count the number of characters present.  Now, as a copy the arguments into the stack we know exactly how much space each argument will occupy.  The stack is setup as follows:
+
+     /* Build the stack */
+     for (i = argc-1; i >= 0; i--){
+	if_.esp = if_.esp - strlen(argv[i])-1;
+	strlcpy(if_.esp,argv[i], PGSIZE);
+	arg_stack[i] = (char **)if_.esp;
+     }
+
+     /* Align the address */
+     if_.esp -= 4 - (len + 1) % 4;
+     if_.esp -= 4;
+     *(int *)(if_.esp) = 0;
+
+     /* Push items into the stack */
+     for (i = argc-1; i >= 0; i--){
+  	  if_.esp = if_.esp - 4;	
+  	  *(void **)if_.esp = (char **)(arg_stack[i]);
+     }
+
+     /* Set the stack address */
+     if_.esp = if_.esp - 4;
+     *(char **)(if_.esp) = if_.esp + 4;
+     if_.esp = if_.esp - 4;
+
+     /* Set the argument count */
+     *(int *)(if_.esp) = argc;
+     if_.esp = if_.esp - 4;
+
+     /* Spoof the return value */
+     *(int *)(if_.esp) = 0;
+
+The first part iterates through the array of arguments and allocates enough space to occupy each argument in the stack.  Then the arguments are copied into the stack.  The argument count is then pushed into the stack, followed by a spoofed return value as specified in the pintos documentation.
+
 ---- RATIONALE ----
 
->> A3: Why does Pintos implement strtok_r() but not strtok()?
+>> Why does Pintos implement strtok_r() but not strtok()?
 
->> A4: In Pintos, the kernel separates commands into a executable name
+strtok_r() is safer than using strtok() because it does not maintain the internal state of the parse, and strtok() is not thread safe.
+
+>> In Pintos, the kernel separates commands into a executable name
 >> and arguments.  In Unix-like systems, the shell does this
 >> separation.  Identify at least two advantages of the Unix approach.
+
+The Unix approach might be better because if the shell separates the commands then the kernel has less work to do.  Also, the shell can filter out anything erroneous beforehand so as to better protect the kernel from receiving bad arguments.
 
 			     SYSTEM CALLS
 			     ============
@@ -102,35 +171,18 @@ FirstName LastName <email@domain.example>
 
 ---- RATIONALE ----
 
->> B9: Why did you choose to implement access to user memory from the
+>> Why did you choose to implement access to user memory from the
 >> kernel in the way that you did?
 
->> B10: What advantages or disadvantages can you see to your design
+The choices we made were to prevent users from accessing memory which was not in userspace.  So, as requests for memory were received we first check if the request is for memory within the userspace boundary and if not we immediately call sys_exit(-1) which sets the return code and safely exits the process.  We do this to protect the system from possible kernel panics.
+
+>> What advantages or disadvantages can you see to your design
 >> for file descriptors?
 
->> B11: The default tid_t to pid_t mapping is the identity mapping.
+We chose to allow each process to maintain a list of file descriptors but we also keep a global list of open files.  The advantages are that a process has an easy way to iterated through all files which it currently owns.  However, the complexity comes when trying to map open files to their parent thread.  This is why we also use a global list of files.  If we are given a file descriptor we want to easily be able to determine which thread is using the file.  So, we simply can iterate through the global list and check the thread id associated with each file.  However, this makes keeping the global list and the list for each process difficult to remain in sync.
+
+>> The default tid_t to pid_t mapping is the identity mapping.
 >> If you changed it, what advantages are there to your approach?
 
-			   SURVEY QUESTIONS
-			   ================
+We did not change this.  We use the default implementation that is provided with Pintos.
 
-Answering these questions is optional, but it will help us improve the
-course in future quarters.  Feel free to tell us anything you
-want--these questions are just to spur your thoughts.  You may also
-choose to respond anonymously in the course evaluations at the end of
-the quarter.
-
->> In your opinion, was this assignment, or any one of the three problems
->> in it, too easy or too hard?  Did it take too long or too little time?
-
->> Did you find that working on a particular part of the assignment gave
->> you greater insight into some aspect of OS design?
-
->> Is there some particular fact or hint we should give students in
->> future quarters to help them solve the problems?  Conversely, did you
->> find any of our guidance to be misleading?
-
->> Do you have any suggestions for the TAs to more effectively assist
->> students, either for future quarters or the remaining projects?
-
->> Any other comments?
