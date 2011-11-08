@@ -126,6 +126,8 @@ The Unix approach might be better because if the shell separates the commands th
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
+The syscall_exec, syscall_wait, and syscall_exit utilize pintos process management utilities. The syscall_open, syscall_close, syscall_create, syscall_remove, syscall_filesize, syscall_read, syscall_write, syscall_seek, and syscall_tell all utilize file management some provided by pintos and provided by us. power_off shuts down pintos.
+
 struct fd_elem
 	struct associating threads with files; adds fd ID.
 
@@ -202,6 +204,9 @@ Our "exec" system call (syscall_exec) calls process_execute which creates a new 
 >> that all resources are freed in each case?  How about when P
 >> terminates without waiting, before C exits?  After C exits?  Are
 >> there any special cases?
+
+In our implementation, a call to "exit" (syscall_exit), all files belonging to a process to reclaim resources. Locks should be previously released in functions where the lock was requested unless an error occurred. Finally, the child's parent should be signaled for completion. 
+The parent process should retrieve the child's return_code to ensure the executable was properly loaded and should not return before. Races may occur while waiting for the child and its termination, and the parent's termination and the child's termination if the parent does not wait for the child.
 
 
 ---- RATIONALE ----
