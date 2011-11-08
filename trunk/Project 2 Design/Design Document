@@ -122,14 +122,36 @@ The Unix approach might be better because if the shell separates the commands th
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
+struct fd_elem
+	struct associating threads with files; adds fd ID.
+
+struct lock filelock
+	Used when reading or writing to a file
+
+static struct list filelist
+	List of all open files.
+
+struct file * find_file_by_fd (int fd)
+	Returns the file element belonging to the fd_elem returned by find_fd_elem_by_fd.
+
+struct fd_elem * find_fd_elem_by_fd (int fd)
+	Iterates through filelist to find the fd_elem with a matching fd.
+	
+struct fd_elem * find_fd_elem_by_fd_in_process (int fd)
+	Iterates through thread_current's file list to find open file with matching fd.
+
 >> B2: Describe how file descriptors are associated with open files.
 >> Are file descriptors unique within the entire OS or just within a
 >> single process?
+
+We have created a struct fd_elem, which contains a unique integer ID, a file, and two list_elem, one describing the thread it is associated with. We also have a global filelist and a filelist containing open files in each process.
 
 ---- ALGORITHMS ----
 
 >> B3: Describe your code for reading and writing user data from the
 >> kernel.
+
+From the syscall_handler, the syscall value is read which determines which system call is called. Our syscall_read implementation tests the amount of data to be read for a zero value. We then acquire our filelock and test for the sources where data will be read from and handle appropriately whether STDIN (read from keyboard with input_getc()) or STDOUT (exit (-1)). We then test that the buffer location in memory is in the userspace. Lastly we add the case of reading from a file with the passed in fd argument using our find_file_by_fd() function. We return the the value returned by the file_read() function if none of the error cases occur.
 
 >> B4: Suppose a system call causes a full page (4,096 bytes) of data
 >> to be copied from user space into the kernel.  What is the least
@@ -140,6 +162,10 @@ The Unix approach might be better because if the shell separates the commands th
 
 >> B5: Briefly describe your implementation of the "wait" system call
 >> and how it interacts with process termination.
+
+Our implementation of "wait" (syscall_wait) calls process_wait(). This function calls find_thread() to find the thread by the tid_t passed into process_wait(). Then checks the thread status, integrity, and return_code, and if these fail, -1 is returned designating that the thread was killed due to an exception.
+We then use a semaphore to block the threadand set the return_code. Next we unblock the thread and set the thread 'waiting' and 'file' to true and NULL respectively and return its return_code.
+
 
 >> B6: Any access to user program memory at a user-specified address
 >> can fail due to a bad pointer value.  Such accesses must cause the
@@ -161,6 +187,8 @@ The Unix approach might be better because if the shell separates the commands th
 >> fails, so it cannot return before the new executable has completed
 >> loading.  How does your code ensure this?  How is the load
 >> success/failure status passed back to the thread that calls "exec"?
+
+Our "exec" system call (syscall_exec) calls process_execute which creates a new thread to run the executable. Once the thread is completed, we wait on the thread to complete by checking the thread status, and calling process_wait if the return_code is invalid until the thread completes.
 
 >> B8: Consider parent process P with child process C.  How do you
 >> ensure proper synchronization and avoid race conditions when P
