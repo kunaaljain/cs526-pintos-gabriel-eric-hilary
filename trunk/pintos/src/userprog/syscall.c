@@ -19,8 +19,6 @@
 
 static void syscall_handler (struct intr_frame *);
 struct file * find_file_by_fd (int fd);
-struct fd_elem * find_fd_elem_by_fd (int fd);
-struct fd_elem * find_fd_elem_by_fd_in_process (int fd);
 struct lock filelock;
 
 static int fid = 2;
@@ -400,8 +398,16 @@ static int syscall_tell (int fd){
 static int syscall_close (int fd){
 
   struct fd_elem *f;
-  
-  f = find_fd_elem_by_fd_in_process (fd);
+  struct list_elem *l;
+		
+  struct thread *t = thread_current ();
+	
+  for (l = list_begin (&t->files); l != list_end (&t->files); l = list_next (l)) {
+		f = list_entry (l, struct fd_elem, thread_elem);
+		if (f->fd == fd) {
+			break;
+		}
+  }
   
   if (!f) {
     return 0;
@@ -416,40 +422,21 @@ static int syscall_close (int fd){
 }
 
 struct file * find_file_by_fd (int fd) {
-  struct fd_elem *ret;
   
-  ret = find_fd_elem_by_fd (fd);
-  if (!ret) {
+  struct fd_elem *f;
+  struct list_elem *l;
+	
+  for (l = list_begin (&filelist); l != list_end (&filelist); l = list_next (l)) {
+		f = list_entry (l, struct fd_elem, elem);
+		if (f->fd == fd) {
+			break;
+		}
+  }
+	
+  if (!f) {
     return NULL;
   }
-  return ret->file;
-}
-
-struct fd_elem * find_fd_elem_by_fd (int fd) {
-  struct fd_elem *ret;
-  struct list_elem *l;
-  
-  for (l = list_begin (&filelist); l != list_end (&filelist); l = list_next (l)) {
-      ret = list_entry (l, struct fd_elem, elem);
-      if (ret->fd == fd)
-        return ret;
-    }
-    
-  return NULL;
-}
-
-struct fd_elem * find_fd_elem_by_fd_in_process (int fd) {
-  struct fd_elem *ret;
-  struct list_elem *l;
-  struct thread *t;
-  
-  t = thread_current ();
-  
-  for (l = list_begin (&t->files); l != list_end (&t->files); l = list_next (l)) {
-      ret = list_entry (l, struct fd_elem, thread_elem);
-      if (ret->fd == fd)
-        return ret;
-    }
-    
-  return NULL;
+	
+  return f->file;
+	
 }
